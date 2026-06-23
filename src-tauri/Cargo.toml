@@ -1,0 +1,23 @@
+[package]
+name = "clarus-reader"
+version = "0.1.0"
+description = "A private, AI-assisted PDF reader"
+authors = ["Lake-Sam"]
+edition = "2021"
+
+[lib]
+name = "clarus_reader_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+keyring = { version = "3", features = ["windows-native"] }
+tokio = { version = "1", features = ["time"] }

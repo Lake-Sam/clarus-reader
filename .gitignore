@@ -1,0 +1,9 @@
+node_modules/
+dist/
+target/
+src-tauri/target/
+public/wordnet/
+.env
+.DS_Store
+*.log
+coverage/
