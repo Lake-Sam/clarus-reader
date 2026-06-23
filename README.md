@@ -45,7 +45,7 @@ PDF files are parsed locally. For explanations and chat, Clarus sends the select
 
 ## Project status
 
-Version `0.1.0` is an MVP for text-based PDFs. Scanned-document OCR, writing annotations back into PDF files, streaming responses, and macOS/Linux packages are intentionally deferred.
+Version `0.1.1` is an MVP for text-based PDFs. Scanned-document OCR, writing annotations back into PDF files, streaming responses, and macOS/Linux packages are intentionally deferred.
 
 ## License
 

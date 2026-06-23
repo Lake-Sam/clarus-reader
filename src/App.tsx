@@ -21,6 +21,7 @@ export default function App() {
   const [panel, setPanel] = useState<Panel>("chat");
   const [definitionWord, setDefinitionWord] = useState("");
   const [definitions, setDefinitions] = useState<Definition[]>([]);
+  const [definitionLoading, setDefinitionLoading] = useState(false);
   const [selected, setSelected] = useState<{ text: string; page: number } | null>(null);
   const [level, setLevel] = useState<ExplainLevel>("simple");
   const [explanation, setExplanation] = useState("");
@@ -30,7 +31,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const hoverTimer = useRef<number | undefined>(undefined);
+  const definitionRequest = useRef(0);
   const docId = useMemo(() => file ? documentId(file.name, file.size) : "", [file]);
 
   useEffect(() => {
@@ -46,17 +47,32 @@ export default function App() {
     setFile(next); setPage(1); setPages([]); setSelected(null); setExplanation(""); setDefinitionWord(""); setError("");
   }, []);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const testPdf = new URLSearchParams(window.location.search).get("pdf");
+    if (!testPdf) return;
+    fetch(testPdf).then(response => response.blob()).then(blob => {
+      const name = testPdf.split("/").pop() || "test.pdf";
+      openFile(new File([blob], name, { type: "application/pdf" }));
+    }).catch(() => setError("Could not load the development test PDF."));
+  }, [openFile]);
+
   const onWord = useCallback((word: string) => {
     if (!settings.hoverDefinitions) return;
-    window.clearTimeout(hoverTimer.current);
-    hoverTimer.current = window.setTimeout(async () => {
-      const clean = word.replace(/^[^A-Za-z]+|[^A-Za-z'-]+$/g, "");
-      if (!clean || clean.toLowerCase() === definitionWord.toLowerCase()) return;
-      setDefinitionWord(clean); setDefinitions([]);
-      try { setDefinitions(await define(clean)); } catch { setDefinitions([]); }
-      setPanel("define");
-    }, 450);
-  }, [definitionWord, settings.hoverDefinitions]);
+    const clean = word.replace(/^[^A-Za-z]+|[^A-Za-z'-]+$/g, "");
+    if (!clean) return;
+    const request = ++definitionRequest.current;
+    setDefinitionWord(clean); setDefinitions([]);
+    setDefinitionLoading(true);
+    define(clean).then(result => {
+      if (definitionRequest.current === request) setDefinitions(result);
+    }).catch(() => {
+      if (definitionRequest.current === request) setDefinitions([]);
+    }).finally(() => {
+      if (definitionRequest.current === request) setDefinitionLoading(false);
+    });
+    setPanel("define");
+  }, [settings.hoverDefinitions]);
 
   async function explainText() {
     if (!selected) return;
@@ -118,7 +134,7 @@ export default function App() {
       </div>
     </header>
     <div className="workspace">
-      <PdfViewer file={file} page={page} onPageChange={setPage} onPages={setPages} onWord={onWord} onSelection={selectPassage} highlights={highlights.filter(item => item.page === page).map(item => item.text)} />
+      <PdfViewer file={file} page={page} onPageChange={setPage} onPages={setPages} onWord={onWord} onSelection={selectPassage} highlights={highlights} />
       <aside className="side-pane">
         <nav className="panel-tabs">
           <button className={panel === "chat" ? "active" : ""} onClick={() => setPanel("chat")}><MessageSquareText /> Chat</button>
@@ -144,8 +160,8 @@ export default function App() {
           </> : <Empty icon={<Highlighter />} title="Highlight a passage" copy="Select any sentence or paragraph in the PDF. Clarus will keep it in view while you explore the meaning." />}
         </div>}
         {panel === "define" && <div className="panel-body definition-panel">
-          <div className="panel-intro"><p className="eyebrow">Offline dictionary</p><h2>{definitionWord || "Hover over a word"}</h2><p>Definitions come from WordNet and never contact an AI service.</p></div>
-          {definitionWord ? <div className="definition-list">{definitions.length ? definitions.map((item, i) => <article key={i}><span>{item.partOfSpeech}</span><p>{item.text}</p></article>) : <div className="definition-loading">No dictionary entry found.</div>}</div> : <Empty icon={<BookOpen />} title="Pause over a word" copy="Keep your pointer over a word in the PDF for a moment to see its meaning here." />}
+          <div className="panel-intro"><p className="eyebrow">Offline dictionary</p><h2>{definitionWord || "Choose a word"}</h2><p>Pause over a word, or right-click it for an immediate definition. WordNet stays entirely offline.</p></div>
+          {definitionWord ? <div className="definition-list">{definitionLoading ? <div className="definition-loading">Looking in the offline dictionary…</div> : definitions.length ? definitions.map((item, i) => <article key={i}><span>{item.partOfSpeech}</span><p>{item.text}</p></article>) : <div className="definition-loading">No dictionary entry found.</div>}</div> : <Empty icon={<BookOpen />} title="Pause or right-click" copy="Rest your pointer over a word for a moment, or right-click it to look it up immediately." />}
         </div>}
         {error && <div className="error-banner side-error"><button onClick={() => setError("")}><X /></button>{error}<span>Check your provider and key in Settings.</span></div>}
         {messages.length > 0 && panel === "chat" && <button className="clear-chat" onClick={() => { clearChat(docId); setMessages([]); }}><Trash2 /> Clear conversation</button>}
