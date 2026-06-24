@@ -9,7 +9,10 @@ Clarus Reader is a private, open-source PDF reader for Windows. It pairs a focus
 - Defines words locally using Princeton WordNet—no AI or network request.
 - Explains selected passages at three levels: very simple, simple, and detailed.
 - Captures formulas or visually complex passages and sends the image directly to a vision-capable model.
-- Chats with a PDF using local relevance search and page citations.
+- Keeps managed local copies of imported PDFs in projects, with documents allowed in multiple projects.
+- Indexes every page locally in the background for document and project chat.
+- Grounds answers with clickable document/page citations, locally verified supporting passages, and direct/inference labels.
+- Offers separate chat scopes for the open document, current project, and the model's external philosophical knowledge.
 - Supports OpenAI, Anthropic, OpenAI-compatible endpoints, and Ollama.
 - Stores provider keys in Windows Credential Manager.
 - Keeps settings, highlights-in-progress, and conversations on the device.
@@ -42,11 +45,11 @@ npm run tauri build
 
 ## Privacy model
 
-PDF files are parsed locally. For explanations and chat, Clarus sends the selected or locally retrieved passages directly to the configured provider. API keys remain in Windows Credential Manager and are never exposed to the web interface. Read [PRIVACY.md](PRIVACY.md) for details.
+PDF files and search indexes are stored and parsed locally. For explanations and grounded chat, Clarus sends the selected or locally retrieved passages directly to the configured provider. API keys remain in Windows Credential Manager and are never exposed to the web interface. Read [PRIVACY.md](PRIVACY.md) for details.
 
 ## Project status
 
-Version `0.1.2` is an MVP for text-based PDFs. Scanned-document OCR, writing annotations back into PDF files, streaming responses, and macOS/Linux packages are intentionally deferred.
+Version `0.2.0` introduces the managed library and citation-grounded multi-document chat. Scanned-document OCR, writing annotations back into PDF files, streaming responses, and macOS/Linux packages are intentionally deferred.
 
 ## License
 

@@ -20,7 +20,7 @@ export async function complete(settings: Settings, system: string, messages: Cha
   return invoke<string>("complete_ai", {
     request: {
       provider: settings.provider,
-      model: settings.model,
+      model: imageDataUrl ? settings.visionModel : settings.model,
       baseUrl: settings.baseUrl || null,
       system,
       imageDataUrl: imageDataUrl || null,

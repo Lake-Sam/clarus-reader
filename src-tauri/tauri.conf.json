@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Clarus Reader",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "identifier": "org.clarus.reader",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -19,6 +19,7 @@
       "center": true,
       "maximized": true,
       "fullscreen": false
+      ,"decorations": false
     }],
     "security": { "csp": null }
   },
