@@ -375,7 +375,7 @@ async fn complete_ai(request: AiRequest) -> Result<String, String> {
                 json!({"role":message.role,"content":message.content})
             }));
             client.post(url).bearer_auth(key).json(&json!({
-                "model": request.model, "input": input, "max_output_tokens": 1800
+                "model": request.model, "input": input, "max_output_tokens": 8192
             })).send().await
         }
         "anthropic" => {
@@ -394,7 +394,7 @@ async fn complete_ai(request: AiRequest) -> Result<String, String> {
             }).collect();
             client.post(url)
                 .header("x-api-key", key).header("anthropic-version", "2023-06-01")
-                .json(&json!({"model":request.model,"system":request.system,"messages":messages,"max_tokens":1800}))
+                .json(&json!({"model":request.model,"system":request.system,"messages":messages,"max_tokens":8192}))
                 .send().await
         }
         "compatible" => {
