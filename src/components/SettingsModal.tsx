@@ -5,6 +5,7 @@ import type { Provider, Settings } from "../lib/types";
 
 const providerNames: Record<Provider, string> = { openai: "OpenAI", anthropic: "Anthropic", compatible: "OpenAI-compatible", ollama: "Ollama (local)" };
 const modelDefaults: Record<Provider, string> = { openai: "gpt-5-mini", anthropic: "claude-sonnet-4-5", compatible: "", ollama: "llama3.2" };
+const visionDefaults: Record<Provider, string> = { openai: "gpt-5-mini", anthropic: "claude-sonnet-4-5", compatible: "", ollama: "llama3.2-vision" };
 
 export default function SettingsModal({ settings, onSave, onClose }: { settings: Settings; onSave: (value: Settings) => void; onClose: () => void }) {
   const [draft, setDraft] = useState(settings);
@@ -13,7 +14,7 @@ export default function SettingsModal({ settings, onSave, onClose }: { settings:
   const [status, setStatus] = useState("");
 
   useEffect(() => { hasKey(draft.provider).then(setSaved); }, [draft.provider]);
-  const changeProvider = (provider: Provider) => setDraft(d => ({ ...d, provider, model: modelDefaults[provider], baseUrl: provider === "ollama" ? "http://127.0.0.1:11434" : "" }));
+  const changeProvider = (provider: Provider) => setDraft(d => ({ ...d, provider, model: modelDefaults[provider], visionModel: visionDefaults[provider], baseUrl: provider === "ollama" ? "http://127.0.0.1:11434" : "" }));
 
   async function storeKey() {
     try { await saveKey(draft.provider, key); setKey(""); setSaved(true); setStatus("Key saved securely in Windows Credential Manager."); }
@@ -28,6 +29,7 @@ export default function SettingsModal({ settings, onSave, onClose }: { settings:
         <p className="muted">Clarus talks directly to your provider. There is no Clarus server or account.</p>
         <div className="provider-grid">{(Object.keys(providerNames) as Provider[]).map(provider => <button key={provider} className={draft.provider === provider ? "provider active" : "provider"} onClick={() => changeProvider(provider)}>{providerNames[provider]}{draft.provider === provider && <Check />}</button>)}</div>
         <label className="field"><span>Model</span><input value={draft.model} onChange={e => setDraft(d => ({ ...d, model: e.target.value }))} placeholder="Model ID" /></label>
+        <label className="field"><span>Vision model</span><input value={draft.visionModel} onChange={e => setDraft(d => ({ ...d, visionModel: e.target.value }))} placeholder="Vision-capable model ID" /><small className="field-help">Used only for captured formulas and images. The model must accept image input.</small></label>
         {(draft.provider === "compatible" || draft.provider === "ollama") && <label className="field"><span>Endpoint</span><input value={draft.baseUrl} onChange={e => setDraft(d => ({ ...d, baseUrl: e.target.value }))} placeholder="https://…/v1" /></label>}
         {draft.provider !== "ollama" && <div className="key-field">
           <label className="field"><span>API key {saved && <em><ShieldCheck /> Saved</em>}</span><div className="input-action"><KeyRound /><input type="password" autoComplete="off" value={key} onChange={e => setKey(e.target.value)} placeholder={saved ? "••••••••••••••••" : "Paste your key"} /><button disabled={!key.trim()} onClick={storeKey}>Save</button></div></label>

@@ -1,6 +1,6 @@
 [package]
 name = "clarus-reader"
-version = "0.1.2"
+version = "0.2.0"
 description = "A private, AI-assisted PDF reader"
 authors = ["Lake-Sam"]
 edition = "2021"
@@ -21,3 +21,5 @@ serde_json = "1"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 keyring = { version = "3", features = ["windows-native"] }
 tokio = { version = "1", features = ["time"] }
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }

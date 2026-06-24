@@ -3,6 +3,7 @@ import type { ChatMessage, Highlight, Settings } from "./types";
 export const defaults: Settings = {
   provider: "openai",
   model: "gpt-5-mini",
+  visionModel: "gpt-5-mini",
   baseUrl: "",
   theme: "system",
   hoverDefinitions: true
