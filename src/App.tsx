@@ -11,7 +11,7 @@ import { complete } from "./lib/ai";
 import { define } from "./lib/wordnet";
 import { broadContext, contextBlock, isBroadQuestion, parseGroundedAnswer, retrieveLibrary, type IndexedDocument } from "./lib/retrieval";
 import { chooseAndImport, emptyLibrary, loadIndex, loadLibrary, readDocument, saveIndex } from "./lib/library";
-import { clearChat, loadChat, loadHighlights, loadSettings, saveChat, saveHighlights, saveSettings } from "./lib/storage";
+import { clearChat, loadChat, loadHighlights, loadPosition, loadSettings, saveChat, saveHighlights, savePosition, saveSettings } from "./lib/storage";
 import type { ChatMessage, ChatSourceMode, Definition, ExplainLevel, Highlight, LibraryDocument, LibraryState, PageText, Settings } from "./lib/types";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
@@ -46,6 +46,7 @@ export default function App() {
   const [error, setError] = useState("");
   const indexing = useRef(new Set<string>());
   const definitionRequest = useRef(0);
+  const messagesRef = useRef<HTMLDivElement>(null);
 
   const currentProject = library.projects.find(project => project.id === selectedProjectId);
   const chatKey = sourceMode === "project" ? `project:${selectedProjectId}` : sourceMode === "external" ? "external" : `document:${activeDocument?.id || "none"}`;
@@ -57,6 +58,8 @@ export default function App() {
   useEffect(() => { saveChat(chatKey, messages); }, [chatKey, messages]);
   useEffect(() => { if (activeDocument) setHighlights(loadHighlights(activeDocument.id)); }, [activeDocument]);
   useEffect(() => { if (activeDocument) saveHighlights(activeDocument.id, highlights); }, [activeDocument, highlights]);
+  useEffect(() => { if (activeDocument) savePosition(activeDocument.id, page); }, [activeDocument, page]);
+  useEffect(() => { const element = messagesRef.current; if (element) element.scrollTop = element.scrollHeight; }, [messages, busy]);
 
   // Imported books are indexed locally in the background, including books the user has not opened yet.
   useEffect(() => {
@@ -78,10 +81,10 @@ export default function App() {
     })();
   }, [library]);
 
-  const openDocument = useCallback(async (document: LibraryDocument, targetPage = 1) => {
+  const openDocument = useCallback(async (document: LibraryDocument, targetPage?: number) => {
     try {
       const bytes = await readDocument(document.id);
-      setActiveDocument(document); setFile(new File([bytes], document.name, { type: "application/pdf" })); setPage(targetPage); setPages([]); setSelected(null); setVisualCapture(null); setExplanation(""); setDefinitionWord(""); setError(""); setLibraryOpen(false);
+      setActiveDocument(document); setFile(new File([bytes], document.name, { type: "application/pdf" })); setPage(targetPage ?? loadPosition(document.id)); setPages([]); setSelected(null); setVisualCapture(null); setExplanation(""); setDefinitionWord(""); setError(""); setLibraryOpen(false);
     } catch (error) { setError(String(error)); }
   }, []);
 
@@ -148,7 +151,7 @@ export default function App() {
       <div className="workspace"><PdfViewer file={file} page={page} onPageChange={setPage} onPages={handlePages} onWord={onWord} onSelection={selectPassage} onCapture={capture => { setVisualCapture(capture); setSelected(null); setExplanation(""); setPanel("explain"); }} highlights={highlights} />
         <aside className="side-pane"><nav className="panel-tabs"><button className={panel === "chat" ? "active" : ""} onClick={() => setPanel("chat")}><MessageSquareText />Chat</button><button className={panel === "explain" ? "active" : ""} onClick={() => setPanel("explain")}><Sparkles />Explain</button><button className={panel === "define" ? "active" : ""} onClick={() => setPanel("define")}><BookOpen />Define</button></nav>
           {panel === "chat" && <div className="panel-body chat-panel"><div className="panel-intro"><p className="eyebrow">Citation-grounded chat</p><h2>Ask with evidence</h2><p>Every documentary answer includes exact pages and supporting passages.</p></div><div className="source-modes">{(Object.keys(sourceLabels) as ChatSourceMode[]).map(mode => <button key={mode} className={sourceMode === mode ? "active" : ""} onClick={() => setSourceMode(mode)}>{mode === "project" ? <Library /> : mode === "external" ? <Sparkles /> : <FileText />}<span>{sourceLabels[mode]}{mode === "project" && <small>{currentProject?.name || "Choose a project"}</small>}</span></button>)}</div>
-            <div className="messages">{!messages.length && <div className="suggestions"><button onClick={() => sendMessage("Summarize the central argument and cite its strongest supporting passages.")}>Summarize with evidence</button><button onClick={() => sendMessage("What are the key concepts, and where are they defined?")}>Find key concepts</button><button onClick={() => sendMessage("Compare the main positions represented in these sources.")}>Compare sources</button></div>}{messages.map((message, index) => <ChatBubble key={index} message={message} onCitation={async citation => { const document = library.documents.find(item => item.id === citation.documentId); if (document) await openDocument(document, citation.page); else setPage(citation.page); }} />)}{busy && <div className="message assistant"><span>A</span><div className="thinking"><i/><i/><i/></div></div>}</div><Composer value={input} setValue={setInput} send={() => sendMessage()} disabled={busy} mode={sourceMode} /></div>}
+            <div className="messages" ref={messagesRef}>{!messages.length && <div className="suggestions"><button onClick={() => sendMessage("Summarize the central argument and cite its strongest supporting passages.")}>Summarize with evidence</button><button onClick={() => sendMessage("What are the key concepts, and where are they defined?")}>Find key concepts</button><button onClick={() => sendMessage("Compare the main positions represented in these sources.")}>Compare sources</button></div>}{messages.map((message, index) => <ChatBubble key={index} message={message} onCitation={async citation => { const document = library.documents.find(item => item.id === citation.documentId); if (document) await openDocument(document, citation.page); else setPage(citation.page); }} />)}{busy && <div className="message assistant"><span>A</span><div className="thinking"><i/><i/><i/></div></div>}</div><Composer value={input} setValue={setInput} send={() => sendMessage()} disabled={busy} mode={sourceMode} /></div>}
           {panel === "explain" && <div className={`panel-body explain-panel ${explanationExpanded ? "expanded" : ""}`}><div className="panel-intro"><p className="eyebrow">Plain language</p><h2>Passage explanation</h2><p>Select text or capture formulas and visual notation.</p></div>{selected || visualCapture ? <>{selected && <blockquote><span>Saved highlight · Page {selected.page}</span>{selected.text}</blockquote>}{visualCapture && <div className="capture-preview"><div><Camera/><span>Visual capture · Page {visualCapture.page}</span><button onClick={() => setVisualCapture(null)}><X/></button></div><img src={visualCapture.dataUrl}/></div>}<div className="level-picker">{(Object.keys(explainLabels) as ExplainLevel[]).map(item => <button className={item === level ? "active" : ""} key={item} onClick={() => setLevel(item)}>{explainLabels[item]}</button>)}</div>{!explanation && <button className="primary explain-action" disabled={busy} onClick={explainText}><Sparkles/>{busy ? "Explaining…" : visualCapture ? "Explain this capture" : "Explain this passage"}</button>}{explanation && <article className="explanation"><div className="article-heading"><Sparkles/><b>{explainLabels[level]} explanation</b><button className="expand-explanation" onClick={() => setExplanationExpanded(value => !value)}>{explanationExpanded ? <Minimize2/> : <Maximize2/>}</button></div><div className="explanation-scroll"><p>{explanation}</p></div></article>}</> : <Empty icon={<Highlighter/>} title="Select or capture a passage" copy="Use text selection or the capture tool in the PDF toolbar."/>}</div>}
           {panel === "define" && <div className="panel-body definition-panel"><div className="panel-intro"><p className="eyebrow">Offline dictionary</p><h2>{definitionWord || "Choose a word"}</h2><p>Click a word in the PDF. WordNet stays offline.</p></div>{definitionWord ? <div className="definition-list">{definitionLoading ? <div className="definition-loading">Looking…</div> : definitions.map((item, index) => <article key={index}><span>{item.partOfSpeech}</span><p>{item.text}</p></article>)}</div> : <Empty icon={<BookOpen/>} title="Click a word" copy="Click any word to look it up."/>}</div>}
           {error && <div className="error-banner side-error"><button onClick={() => setError("")}><X/></button>{error}</div>}{messages.length > 0 && panel === "chat" && <button className="clear-chat" onClick={() => { clearChat(chatKey); setMessages([]); }}><Trash2/>Clear conversation</button>}

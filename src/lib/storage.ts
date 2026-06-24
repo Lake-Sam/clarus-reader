@@ -33,6 +33,15 @@ export function saveChat(id: string, messages: ChatMessage[]) {
 
 export function clearChat(id: string) { localStorage.removeItem(`clarus:chat:${id}`); }
 
+export function loadPosition(id: string) {
+  const value = Number(localStorage.getItem(`clarus:position:${id}`));
+  return Number.isInteger(value) && value > 0 ? value : 1;
+}
+
+export function savePosition(id: string, page: number) {
+  localStorage.setItem(`clarus:position:${id}`, String(Math.max(1, Math.floor(page))));
+}
+
 export function loadHighlights(id: string): Highlight[] {
   try { return JSON.parse(localStorage.getItem(`clarus:highlights:${id}`) || "[]"); }
   catch { return []; }

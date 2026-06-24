@@ -49,7 +49,7 @@ PDF files and search indexes are stored and parsed locally. For explanations and
 
 ## Project status
 
-Version `0.2.0` introduces the managed library and citation-grounded multi-document chat. Scanned-document OCR, writing annotations back into PDF files, streaming responses, and macOS/Linux packages are intentionally deferred.
+Version `0.2.1` adds longer, fully scrollable responses and restores each PDF to its last-read page. Scanned-document OCR, writing annotations back into PDF files, streaming responses, and macOS/Linux packages are intentionally deferred.
 
 ## License
 
