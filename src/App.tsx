@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, FileText, Highlighter, MessageSquareText, Moon, MoreHorizontal, Send, Settings as SettingsIcon, Sparkles, Sun, Trash2, Upload, X } from "lucide-react";
+import { BookOpen, Camera, FileText, Highlighter, Maximize2, MessageSquareText, Minimize2, Moon, Send, Settings as SettingsIcon, Sparkles, Sun, Trash2, Upload, X } from "lucide-react";
 import PdfViewer from "./components/PdfViewer";
 import SettingsModal from "./components/SettingsModal";
 import logo from "./assets/logo.svg";
@@ -23,8 +23,10 @@ export default function App() {
   const [definitions, setDefinitions] = useState<Definition[]>([]);
   const [definitionLoading, setDefinitionLoading] = useState(false);
   const [selected, setSelected] = useState<{ text: string; page: number } | null>(null);
+  const [visualCapture, setVisualCapture] = useState<{ dataUrl: string; page: number } | null>(null);
   const [level, setLevel] = useState<ExplainLevel>("simple");
   const [explanation, setExplanation] = useState("");
+  const [explanationExpanded, setExplanationExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [input, setInput] = useState("");
@@ -44,7 +46,7 @@ export default function App() {
 
   const openFile = useCallback((next: File) => {
     if (next.type !== "application/pdf" && !next.name.toLowerCase().endsWith(".pdf")) { setError("Choose a PDF file."); return; }
-    setFile(next); setPage(1); setPages([]); setSelected(null); setExplanation(""); setDefinitionWord(""); setError("");
+    setFile(next); setPage(1); setPages([]); setSelected(null); setVisualCapture(null); setExplanation(""); setExplanationExpanded(false); setDefinitionWord(""); setError("");
   }, []);
 
   useEffect(() => {
@@ -75,13 +77,16 @@ export default function App() {
   }, [settings.hoverDefinitions]);
 
   async function explainText() {
-    if (!selected) return;
+    if (!selected && !visualCapture) return;
     setBusy(true); setError(""); setExplanation("");
     const instruction = level === "very-simple" ? "Use everyday words, short sentences, and one concrete analogy." : level === "detailed" ? "Explain carefully, preserve nuance, define technical terms, and show the reasoning structure." : "Use clear plain language while preserving the main idea.";
     try {
-      const response = await complete(settings,
+      const response = visualCapture ? await complete(settings,
+        `You explain difficult philosophical writing and formal notation accurately. ${instruction} Read every visible symbol carefully, preserve quantifiers, connectives, variables, subscripts, and superscripts, and distinguish what the formula says from how the surrounding prose uses it. Do not invent illegible characters. End with a one-sentence takeaway.`,
+        [{ role: "user", content: `Explain the captured formula or visual passage from page ${visualCapture.page}. First transcribe the notation faithfully, then explain it.` }],
+        visualCapture.dataUrl) : await complete(settings,
         `You explain difficult writing accurately. ${instruction} Do not invent context. End with a one-sentence takeaway.`,
-        [{ role: "user", content: `Explain this passage from page ${selected.page}:\n\n${selected.text}` }]);
+        [{ role: "user", content: `Explain this passage from page ${selected!.page}:\n\n${selected!.text}` }]);
       setExplanation(response);
     } catch (e) { setError(String(e)); }
     finally { setBusy(false); }
@@ -103,8 +108,12 @@ export default function App() {
   }
 
   const selectPassage = useCallback((text: string, selectedPage: number) => {
-    setSelected({ text, page: selectedPage }); setExplanation(""); setPanel("explain");
+    setSelected({ text, page: selectedPage }); setVisualCapture(null); setExplanation(""); setExplanationExpanded(false); setPanel("explain");
     setHighlights(current => current.some(item => item.page === selectedPage && item.text === text) ? current : [...current, { id: crypto.randomUUID(), page: selectedPage, text, createdAt: Date.now() }]);
+  }, []);
+
+  const capturePassage = useCallback((capture: { dataUrl: string; page: number }) => {
+    setVisualCapture(capture); setSelected(null); setExplanation(""); setExplanationExpanded(false); setPanel("explain");
   }, []);
 
   if (!file) return <main className="welcome" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) openFile(f); }}>
@@ -134,7 +143,7 @@ export default function App() {
       </div>
     </header>
     <div className="workspace">
-      <PdfViewer file={file} page={page} onPageChange={setPage} onPages={setPages} onWord={onWord} onSelection={selectPassage} highlights={highlights} />
+      <PdfViewer file={file} page={page} onPageChange={setPage} onPages={setPages} onWord={onWord} onSelection={selectPassage} onCapture={capturePassage} highlights={highlights} />
       <aside className="side-pane">
         <nav className="panel-tabs">
           <button className={panel === "chat" ? "active" : ""} onClick={() => setPanel("chat")}><MessageSquareText /> Chat</button>
@@ -150,18 +159,19 @@ export default function App() {
           </div>
           <Composer value={input} setValue={setInput} send={() => sendMessage()} disabled={busy} />
         </div>}
-        {panel === "explain" && <div className="panel-body explain-panel">
-          <div className="panel-intro"><p className="eyebrow">Plain language</p><h2>Passage explanation</h2><p>Highlight text in the PDF to unpack it here.</p></div>
-          {selected ? <>
-            <blockquote><span>Saved highlight · Page {selected.page}</span>{selected.text}</blockquote>
+        {panel === "explain" && <div className={`panel-body explain-panel ${explanationExpanded ? "expanded" : ""}`}>
+          <div className="panel-intro"><p className="eyebrow">Plain language</p><h2>Passage explanation</h2><p>Select ordinary text, or capture formulas and visual notation.</p></div>
+          {selected || visualCapture ? <>
+            {selected && <blockquote><span>Saved highlight · Page {selected.page}</span>{selected.text}</blockquote>}
+            {visualCapture && <div className="capture-preview"><div><Camera /><span>Visual capture · Page {visualCapture.page}</span><button aria-label="Remove visual capture" onClick={() => setVisualCapture(null)}><X /></button></div><img src={visualCapture.dataUrl} alt={`Captured formula from page ${visualCapture.page}`} /></div>}
             <div className="level-picker">{(Object.keys(explainLabels) as ExplainLevel[]).map(item => <button className={item === level ? "active" : ""} key={item} onClick={() => setLevel(item)}>{explainLabels[item]}</button>)}</div>
-            {!explanation && <button className="primary explain-action" disabled={busy} onClick={explainText}><Sparkles />{busy ? "Explaining…" : "Explain this passage"}</button>}
-            {explanation && <article className="explanation"><div className="article-heading"><Sparkles /><b>{explainLabels[level]} explanation</b></div><p>{explanation}</p><button className="secondary" onClick={() => { setPanel("chat"); setInput(`I have a follow-up about the passage on page ${selected.page}: `); }}>Ask a follow-up</button></article>}
-          </> : <Empty icon={<Highlighter />} title="Highlight a passage" copy="Select any sentence or paragraph in the PDF. Clarus will keep it in view while you explore the meaning." />}
+            {!explanation && <button className="primary explain-action" disabled={busy} onClick={explainText}><Sparkles />{busy ? "Explaining…" : visualCapture ? "Explain this capture" : "Explain this passage"}</button>}
+            {explanation && <article className="explanation"><div className="article-heading"><Sparkles /><b>{explainLabels[level]} explanation</b><button className="expand-explanation" aria-label={explanationExpanded ? "Collapse explanation" : "Expand explanation"} onClick={() => setExplanationExpanded(value => !value)}>{explanationExpanded ? <Minimize2 /> : <Maximize2 />}</button></div><div className="explanation-scroll"><p>{explanation}</p>{selected && <button className="secondary" onClick={() => { setPanel("chat"); setInput(`I have a follow-up about the passage on page ${selected.page}: `); }}>Ask a follow-up</button>}</div></article>}
+          </> : <Empty icon={<Highlighter />} title="Select or capture a passage" copy="Highlight ordinary text, or use the capture tool in the PDF toolbar and drag around formulas or notation." />}
         </div>}
         {panel === "define" && <div className="panel-body definition-panel">
-          <div className="panel-intro"><p className="eyebrow">Offline dictionary</p><h2>{definitionWord || "Choose a word"}</h2><p>Pause over a word, or right-click it for an immediate definition. WordNet stays entirely offline.</p></div>
-          {definitionWord ? <div className="definition-list">{definitionLoading ? <div className="definition-loading">Looking in the offline dictionary…</div> : definitions.length ? definitions.map((item, i) => <article key={i}><span>{item.partOfSpeech}</span><p>{item.text}</p></article>) : <div className="definition-loading">No dictionary entry found.</div>}</div> : <Empty icon={<BookOpen />} title="Pause or right-click" copy="Rest your pointer over a word for a moment, or right-click it to look it up immediately." />}
+          <div className="panel-intro"><p className="eyebrow">Offline dictionary</p><h2>{definitionWord || "Choose a word"}</h2><p>Click a word in the PDF to define it. WordNet stays entirely offline.</p></div>
+          {definitionWord ? <div className="definition-list">{definitionLoading ? <div className="definition-loading">Looking in the offline dictionary…</div> : definitions.length ? definitions.map((item, i) => <article key={i}><span>{item.partOfSpeech}</span><p>{item.text}</p></article>) : <div className="definition-loading">No dictionary entry found.</div>}</div> : <Empty icon={<BookOpen />} title="Click a word" copy="Click any word in the PDF to look it up without interrupting ordinary reading." />}
         </div>}
         {error && <div className="error-banner side-error"><button onClick={() => setError("")}><X /></button>{error}<span>Check your provider and key in Settings.</span></div>}
         {messages.length > 0 && panel === "chat" && <button className="clear-chat" onClick={() => { clearChat(docId); setMessages([]); }}><Trash2 /> Clear conversation</button>}

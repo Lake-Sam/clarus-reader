@@ -37,7 +37,7 @@ export default function SettingsModal({ settings, onSave, onClose }: { settings:
       </div>
       <div className="settings-section row-settings">
         <label className="field"><span>Appearance</span><select value={draft.theme} onChange={e => setDraft(d => ({ ...d, theme: e.target.value as Settings["theme"] }))}><option value="system">Follow system</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-        <label className="toggle"><span><b>Hover definitions</b><small>Pause over words in the PDF</small></span><input type="checkbox" checked={draft.hoverDefinitions} onChange={e => setDraft(d => ({ ...d, hoverDefinitions: e.target.checked }))} /></label>
+        <label className="toggle"><span><b>Click definitions</b><small>Click words in the PDF to define them</small></span><input type="checkbox" checked={draft.hoverDefinitions} onChange={e => setDraft(d => ({ ...d, hoverDefinitions: e.target.checked }))} /></label>
       </div>
       <div className="modal-actions"><button className="secondary" onClick={onClose}>Cancel</button><button className="primary" onClick={() => { onSave(draft); onClose(); }}>Save settings</button></div>
     </div>
