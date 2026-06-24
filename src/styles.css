@@ -90,6 +90,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .reader-toolbar { height:48px; flex:0 0 48px; padding:0 12px; background:var(--panel); border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .reader-toolbar button { width:30px; height:30px; border:0; background:transparent; display:grid; place-items:center; border-radius:7px; cursor:pointer; }
 .reader-toolbar button:hover { background:var(--panel-2); }
+.reader-toolbar .capture-tool { width:auto; padding:0 8px; margin-right:4px; color:var(--muted); }
+.reader-toolbar .capture-tool.active { color:var(--accent-bright); background:var(--accent-soft); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent); }
 .reader-toolbar svg { width:16px; }
 .page-controls,.zoom-controls { display:flex; align-items:center; gap:2px; }
 .page-controls label { display:flex; align-items:center; gap:5px; color:var(--muted); font-size:11px; }
@@ -105,14 +107,17 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .page-number { display:block; margin:0 0 7px; text-align:center; color:#59625f; font-size:10px; font-weight:600; letter-spacing:.04em; }
 .pdf-page { position:relative; width:max-content; margin:0 auto; box-shadow:0 4px 22px rgba(0,0,0,.15); background:white; transition:width .12s ease,height .12s ease; }
 .pdf-page canvas { display:block; }
+.pdf-page.capture-mode .textLayer { pointer-events:none; }
+.capture-layer { position:absolute; inset:0; z-index:4; cursor:crosshair; touch-action:none; user-select:none; }
+.capture-layer > span { position:sticky; top:14px; left:50%; display:table; transform:translateX(-50%); padding:7px 11px; border-radius:8px; background:rgba(24,32,30,.88); color:white; font-size:10px; font-weight:600; box-shadow:0 4px 15px rgba(0,0,0,.22); }
+.capture-layer > i { position:absolute; display:block; border:2px solid var(--gold); background:rgba(215,168,91,.14); box-shadow:0 0 0 9999px rgba(18,24,22,.22); }
 .textLayer { color-scheme:only light; position:absolute; text-align:initial; inset:0; overflow:clip; opacity:1; line-height:1; text-size-adjust:none; forced-color-adjust:none; transform-origin:0 0; caret-color:CanvasText; z-index:1; --min-font-size:1; --text-scale-factor:calc(var(--total-scale-factor) * var(--min-font-size)); --min-font-size-inv:calc(1 / var(--min-font-size)); }
 .textLayer :is(span,br) { color:transparent; position:absolute; white-space:pre; cursor:text; transform-origin:0 0; }
 .textLayer > :not(.markedContent), .textLayer .markedContent > span:not(.markedContent) { z-index:1; --font-height:0; font-size:calc(var(--text-scale-factor) * var(--font-height)); --scale-x:1; --rotate:0deg; transform:rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
 .textLayer .markedContent { display:contents; }
 .textLayer .pdf-word { color:transparent; position:static; display:inline; white-space:pre; font:inherit; transform:none; }
 .textLayer ::selection { background:rgba(93,157,141,.42); color:transparent; }
-.pdf-word { cursor:help; transition:background-color .16s ease, box-shadow .16s ease; }
-.pdf-word:hover { background:rgba(218, 174, 92, .12); border-radius:2px; }
+.pdf-word { cursor:pointer; transition:background-color .16s ease, box-shadow .16s ease; }
 .pdf-word.definition-target { background:rgba(218, 174, 92, .28); border-radius:2px; box-shadow:0 0 0 1px rgba(170,119,32,.72), 0 2px 5px rgba(88,63,24,.18); }
 .pdf-word.saved-highlight { background:rgba(231, 188, 85, .34); box-shadow:0 1px 0 rgba(170, 119, 32, .38); }
 .pdf-loading { min-height:300px; display:flex; align-items:center; justify-content:center; gap:10px; color:#59625f; }
@@ -158,10 +163,24 @@ blockquote span { display:block; font-family:"DM Sans",sans-serif; color:var(--m
 .level-picker button.active { background:var(--panel); color:var(--ink); box-shadow:0 1px 5px rgba(0,0,0,.1); }
 .explain-action { width:100%; }
 .explain-action svg { width:16px; }
-.explanation { border-top:1px solid var(--line-soft); margin-top:18px; padding-top:19px; }
+.explain-panel { display:flex; flex-direction:column; }
+.explanation { min-height:0; max-height:min(52vh,520px); overflow:hidden; display:flex; flex-direction:column; border-top:1px solid var(--line-soft); margin-top:18px; padding-top:19px; }
 .article-heading { display:flex; align-items:center; gap:8px; color:var(--accent-bright); font-size:12px; }
 .article-heading svg { width:16px; }
-.explanation > p { white-space:pre-wrap; font-size:13px; line-height:1.75; }
+.article-heading b { flex:1; }
+.expand-explanation { width:31px; height:31px; display:grid; place-items:center; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); color:var(--muted); cursor:pointer; }
+.explanation-scroll { min-height:0; overflow:auto; padding-right:6px; }
+.explanation-scroll > p { white-space:pre-wrap; font-size:13px; line-height:1.75; }
+.explain-panel.expanded { overflow:hidden; }
+.explain-panel.expanded > .panel-intro, .explain-panel.expanded > blockquote, .explain-panel.expanded > .capture-preview, .explain-panel.expanded > .level-picker { display:none; }
+.explain-panel.expanded .explanation { flex:1; max-height:none; margin-top:0; padding-top:0; border-top:0; }
+.capture-preview { margin:0 0 16px; border:1px solid var(--line); border-radius:11px; overflow:hidden; background:white; }
+.capture-preview > div { height:34px; display:flex; align-items:center; gap:7px; padding:0 9px; background:var(--panel-2); color:var(--muted); font-size:10px; }
+.capture-preview > div > svg { width:14px; color:var(--accent-bright); }
+.capture-preview > div > span { flex:1; }
+.capture-preview > div > button { width:24px; height:24px; display:grid; place-items:center; border:0; background:transparent; color:var(--muted); cursor:pointer; }
+.capture-preview > div > button svg { width:13px; }
+.capture-preview > img { display:block; width:100%; max-height:240px; object-fit:contain; background:white; }
 .secondary { border:1px solid var(--line); background:var(--panel-2); border-radius:9px; padding:9px 14px; cursor:pointer; }
 .definition-list article { border-bottom:1px solid var(--line-soft); padding:15px 0; }
 .definition-list article span { color:var(--gold); font-style:italic; font-family:"Source Serif 4",Georgia,serif; font-size:12px; }

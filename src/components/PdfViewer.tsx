@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GlobalWorkerOptions, TextLayer, getDocument, type PDFDocumentProxy, type RenderTask } from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { ChevronLeft, ChevronRight, Minus, Plus, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Crop, Minus, Plus, Search } from "lucide-react";
 import type { Highlight, PageText } from "../lib/types";
 
 GlobalWorkerOptions.workerSrc = workerSrc;
@@ -13,6 +13,7 @@ interface Props {
   onPages: (pages: PageText[]) => void;
   onWord: (word: string) => void;
   onSelection: (text: string, page: number) => void;
+  onCapture: (capture: { dataUrl: string; page: number }) => void;
   highlights: Highlight[];
 }
 
@@ -24,16 +25,18 @@ interface PageProps {
   highlights: Highlight[];
   onWord: (word: string) => void;
   onSelection: (text: string, page: number) => void;
+  onCapture: (capture: { dataUrl: string; page: number }) => void;
+  captureMode: boolean;
   register: (page: number, element: HTMLDivElement | null) => void;
 }
 
-function PdfPage({ pdf, pageNumber, scale, scrollRoot, highlights, onWord, onSelection, register }: PageProps) {
+function PdfPage({ pdf, pageNumber, scale, scrollRoot, highlights, onWord, onSelection, onCapture, captureMode, register }: PageProps) {
   const pageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
-  const hoverTimer = useRef<number | undefined>(undefined);
   const [nearViewport, setNearViewport] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 612 * scale, height: 792 * scale });
+  const [captureRect, setCaptureRect] = useState<{ startX: number; startY: number; x: number; y: number; width: number; height: number } | null>(null);
 
   useEffect(() => {
     register(pageNumber, pageRef.current);
@@ -96,26 +99,20 @@ function PdfPage({ pdf, pageNumber, scale, scrollRoot, highlights, onWord, onSel
         const sourceText = textDiv.textContent || "";
         textDiv.replaceChildren();
         for (const part of sourceText.split(/(\s+)/)) {
+          if (!/\w/.test(part)) {
+            textDiv.append(part);
+            continue;
+          }
           const word = document.createElement("span");
           word.textContent = part;
-          if (/\w/.test(part)) {
-            word.className = "pdf-word";
-            const showDefinition = (immediate: boolean) => {
-              window.clearTimeout(hoverTimer.current);
-              hoverTimer.current = window.setTimeout(() => {
-                document.querySelectorAll(".pdf-word.definition-target").forEach(element => element.classList.remove("definition-target"));
-                word.classList.add("definition-target");
-                onWord(part);
-              }, immediate ? 0 : 900);
-            };
-            word.onmouseenter = () => showDefinition(false);
-            word.onmouseleave = () => window.clearTimeout(hoverTimer.current);
-            word.oncontextmenu = event => {
-              event.preventDefault();
-              showDefinition(true);
-            };
-            renderedWords.push(word);
-          }
+          word.className = "pdf-word";
+          word.onclick = event => {
+            event.stopPropagation();
+            document.querySelectorAll(".pdf-word.definition-target").forEach(element => element.classList.remove("definition-target"));
+            word.classList.add("definition-target");
+            onWord(part);
+          };
+          renderedWords.push(word);
           textDiv.appendChild(word);
         }
       }
@@ -140,20 +137,74 @@ function PdfPage({ pdf, pageNumber, scale, scrollRoot, highlights, onWord, onSel
       cancelled = true;
       canvasRenderTask?.cancel();
       renderedTextLayer?.cancel();
-      window.clearTimeout(hoverTimer.current);
     };
   }, [highlights, nearViewport, onWord, pageNumber, pdf, scale]);
 
   const captureSelection = useCallback(() => {
+    if (captureMode) return;
     const selection = window.getSelection();
     const text = selection?.toString().trim() || "";
     if (text.length > 2 && textRef.current?.contains(selection?.anchorNode || null)) onSelection(text, pageNumber);
-  }, [onSelection, pageNumber]);
+  }, [captureMode, onSelection, pageNumber]);
+
+  const pointInPage = (event: React.PointerEvent<HTMLDivElement>) => {
+    const bounds = pageRef.current!.querySelector<HTMLElement>(".pdf-page")!.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(bounds.width, event.clientX - bounds.left)),
+      y: Math.max(0, Math.min(bounds.height, event.clientY - bounds.top))
+    };
+  };
+
+  const beginCapture = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!captureMode || event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = pointInPage(event);
+    setCaptureRect({ startX: point.x, startY: point.y, x: point.x, y: point.y, width: 0, height: 0 });
+  };
+
+  const moveCapture = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!captureRect || !captureMode) return;
+    const point = pointInPage(event);
+    setCaptureRect(current => current && ({
+      ...current,
+      x: Math.min(current.startX, point.x),
+      y: Math.min(current.startY, point.y),
+      width: Math.abs(point.x - current.startX),
+      height: Math.abs(point.y - current.startY)
+    }));
+  };
+
+  const finishCapture = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!captureRect || !captureMode || !canvasRef.current) return;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    const rect = captureRect;
+    setCaptureRect(null);
+    if (rect.width < 12 || rect.height < 12) return;
+    const source = canvasRef.current;
+    const ratioX = source.width / source.clientWidth;
+    const ratioY = source.height / source.clientHeight;
+    const sourceWidth = Math.max(1, Math.round(rect.width * ratioX));
+    const sourceHeight = Math.max(1, Math.round(rect.height * ratioY));
+    const maxDimension = 1800;
+    const outputScale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+    const output = document.createElement("canvas");
+    output.width = Math.max(1, Math.round(sourceWidth * outputScale));
+    output.height = Math.max(1, Math.round(sourceHeight * outputScale));
+    const context = output.getContext("2d")!;
+    context.fillStyle = "white";
+    context.fillRect(0, 0, output.width, output.height);
+    context.drawImage(
+      source,
+      Math.round(rect.x * ratioX), Math.round(rect.y * ratioY), sourceWidth, sourceHeight,
+      0, 0, output.width, output.height
+    );
+    onCapture({ dataUrl: output.toDataURL("image/png"), page: pageNumber });
+  };
 
   return <div className="pdf-page-wrap" ref={pageRef} data-page={pageNumber}>
     <span className="page-number">Page {pageNumber}</span>
     <div
-      className="pdf-page"
+      className={`pdf-page ${captureMode ? "capture-mode" : ""}`}
       aria-label={`Page ${pageNumber}`}
       onMouseUp={captureSelection}
       style={{ width: dimensions.width, height: dimensions.height }}
@@ -161,17 +212,28 @@ function PdfPage({ pdf, pageNumber, scale, scrollRoot, highlights, onWord, onSel
       {nearViewport && <>
         <canvas ref={canvasRef} />
         <div ref={textRef} className="textLayer text-layer" />
+        {captureMode && <div
+          className="capture-layer"
+          onPointerDown={beginCapture}
+          onPointerMove={moveCapture}
+          onPointerUp={finishCapture}
+          onPointerCancel={() => setCaptureRect(null)}
+        >
+          {!captureRect && <span>Drag around a formula or passage</span>}
+          {captureRect && <i style={{ left: captureRect.x, top: captureRect.y, width: captureRect.width, height: captureRect.height }} />}
+        </div>}
       </>}
     </div>
   </div>;
 }
 
-export default function PdfViewer({ file, page, onPageChange, onPages, onWord, onSelection, highlights }: Props) {
+export default function PdfViewer({ file, page, onPageChange, onPages, onWord, onSelection, onCapture, highlights }: Props) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [scale, setScale] = useState(1.05);
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+  const [captureMode, setCaptureMode] = useState(false);
   const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
   const pagesRef = useRef<PageText[]>([]);
   const pageElements = useRef(new Map<number, HTMLDivElement>());
@@ -282,6 +344,7 @@ export default function PdfViewer({ file, page, onPageChange, onPages, onWord, o
       </div>
       <div className="search-box"><Search /><input placeholder="Find in document" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && matches[0]) navigateToPage(matches[0]); }} />{query && <span>{matches.length} pages</span>}</div>
       <div className="zoom-controls">
+        <button className={captureMode ? "capture-tool active" : "capture-tool"} aria-label={captureMode ? "Cancel formula capture" : "Capture formula"} title="Capture a formula or visual passage" onClick={() => setCaptureMode(value => !value)}><Crop /></button>
         <button aria-label="Zoom out" onClick={() => setScale(value => Math.max(.55, value - .1))}><Minus /></button>
         <span>{Math.round(scale * 100)}%</span>
         <button aria-label="Zoom in" onClick={() => setScale(value => Math.min(2.5, value + .1))}><Plus /></button>
@@ -299,6 +362,8 @@ export default function PdfViewer({ file, page, onPageChange, onPages, onWord, o
           highlights={highlights}
           onWord={onWord}
           onSelection={onSelection}
+          onCapture={capture => { setCaptureMode(false); onCapture(capture); }}
+          captureMode={captureMode}
           register={registerPage}
         />)}
       </div>}

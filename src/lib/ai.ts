@@ -15,7 +15,7 @@ export async function hasKey(provider: Provider) {
   return isDesktop() ? invoke<boolean>("has_api_key", { provider }) : false;
 }
 
-export async function complete(settings: Settings, system: string, messages: ChatMessage[]) {
+export async function complete(settings: Settings, system: string, messages: ChatMessage[], imageDataUrl?: string) {
   if (!isDesktop()) throw new Error("AI requests run through Clarus’s secure desktop process. Use the installed app to connect a model.");
   return invoke<string>("complete_ai", {
     request: {
@@ -23,6 +23,7 @@ export async function complete(settings: Settings, system: string, messages: Cha
       model: settings.model,
       baseUrl: settings.baseUrl || null,
       system,
+      imageDataUrl: imageDataUrl || null,
       messages: messages.map(({ role, content }) => ({ role, content }))
     }
   });

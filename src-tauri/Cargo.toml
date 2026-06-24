@@ -1,6 +1,6 @@
 [package]
 name = "clarus-reader"
-version = "0.1.1"
+version = "0.1.2"
 description = "A private, AI-assisted PDF reader"
 authors = ["Lake-Sam"]
 edition = "2021"

@@ -8,6 +8,7 @@ Clarus Reader is a private, open-source PDF reader for Windows. It pairs a focus
 
 - Defines words locally using Princeton WordNet—no AI or network request.
 - Explains selected passages at three levels: very simple, simple, and detailed.
+- Captures formulas or visually complex passages and sends the image directly to a vision-capable model.
 - Chats with a PDF using local relevance search and page citations.
 - Supports OpenAI, Anthropic, OpenAI-compatible endpoints, and Ollama.
 - Stores provider keys in Windows Credential Manager.
@@ -45,7 +46,7 @@ PDF files are parsed locally. For explanations and chat, Clarus sends the select
 
 ## Project status
 
-Version `0.1.1` is an MVP for text-based PDFs. Scanned-document OCR, writing annotations back into PDF files, streaming responses, and macOS/Linux packages are intentionally deferred.
+Version `0.1.2` is an MVP for text-based PDFs. Scanned-document OCR, writing annotations back into PDF files, streaming responses, and macOS/Linux packages are intentionally deferred.
 
 ## License
 
